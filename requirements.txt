@@ -1,0 +1,7 @@
+stim==1.16.0
+pymatching==2.4.0
+numpy==2.5.2
+pandas==3.0.5
+matplotlib==3.11.1
+scipy==1.18.1
+

@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+results/*.csv
+!results/.gitkeep
+!results/summary.csv
+!results/budget_sweep_summary.csv
+figures/*.png
+!figures/.gitkeep
+!figures/online_adaptation.png
+!figures/budget_sweep.png
+
