@@ -77,11 +77,40 @@ This is the first useful result of the project: there is a measurable region in
 which fewer confidence-gated updates retain nearly all decoder performance, but
 overly small windows can delay adaptation and cause avoidable logical errors.
 
+### Distance scaling
+
+The step-drift experiment was repeated at code distances 3, 5, 7, and 9. Each
+distance used six independent random seeds, 18 time windows, 4,000 shots per
+window per logical basis, and a separately calibrated detector-rate curve.
+
+| Distance | Static/oracle | Confidence/oracle | Oracle benefit recovered | Confidence updates | Estimation RMSE |
+|---:|---:|---:|---:|---:|---:|
+| 3 | 1.0270 | 1.0028 | 89.5% | 6.17 | 0.050 percentage points |
+| 5 | 1.0454 | 1.0043 | 90.6% | 5.67 | 0.029 percentage points |
+| 7 | 1.0654 | 1.0017 | 97.4% | 4.33 | 0.016 percentage points |
+| 9 | 1.0895 | 1.0076 | 91.6% | 3.83 | 0.013 percentage points |
+
+Two trends appear in this controlled model:
+
+1. The relative penalty from a stale decoder increases with code distance. The
+   static decoder is about 2.7% above oracle at distance 3 and 8.9% above oracle
+   at distance 9.
+2. Measurement-noise estimation improves with code distance. At a fixed number
+   of shots, larger codes expose more detector outcomes, and the observed RMSE
+   falls by nearly a factor of four from distance 3 to distance 9.
+
+The confidence policy recovers at least 89% of the available oracle improvement
+at every tested distance while using fewer updates as distance increases. This
+is promising but remains conditional on the one-parameter synthetic noise
+model; the increased number of detector bits does not guarantee identifiability
+when several physical noise parameters drift simultaneously.
+
 ### What the result does not establish
 
 This is a preliminary computational result, not yet a publication claim.
 
-1. Only one code distance and one base physical error rate were used.
+1. Distance scaling has been tested, but only one base physical error rate and
+   one step amplitude were used.
 2. The changing noise is synthetic Pauli measurement noise.
 3. The estimator assumes gate and data noise remain fixed.
 4. Detector outcomes within a shot are correlated; the current normal interval
@@ -94,7 +123,8 @@ This is a preliminary computational result, not yet a publication claim.
 
 ### Next experiments
 
-1. Repeat distances 3, 5, 7, and 9 and measure scaling with code distance.
+1. Repeat the distance scan across several base physical error rates and drift
+   amplitudes, with bootstrap intervals over independent replicates.
 2. Replace the detector-rate lookup with syndrome-pair correlation estimates.
 3. Add simultaneous data and measurement drift, local hot qubits, and bursts.
 4. Replace the fixed significance threshold with a decision rule that minimizes
@@ -110,6 +140,7 @@ Run:
 ../.venv/bin/python -m unittest discover -s tests -v
 ../.venv/bin/python src/run_online_adaptation.py
 ../.venv/bin/python src/run_budget_sweep.py
+../.venv/bin/python src/run_distance_scaling.py
 ```
 
 The tracked summary CSV files contain the reported aggregate values. Raw

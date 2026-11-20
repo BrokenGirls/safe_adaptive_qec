@@ -40,6 +40,7 @@ cd safe_adaptive_qec
 ../.venv/bin/python src/run_online_adaptation.py --quick
 ../.venv/bin/python src/run_online_adaptation.py
 ../.venv/bin/python src/run_budget_sweep.py
+../.venv/bin/python src/run_distance_scaling.py
 ```
 
 The full run writes:
@@ -51,6 +52,8 @@ The full run writes:
 - `figures/online_adaptation.png`
 - `results/budget_sweep_summary.csv`
 - `figures/budget_sweep.png`
+- `results/distance_scaling_summary.csv`
+- `figures/distance_scaling.png`
 
 ## Current scope
 
@@ -71,6 +74,11 @@ dominance: with only 50 shots per window, confidence gating reacted too slowly;
 from roughly 100 shots per window onward, it stayed close to the oracle while
 using about 4-6 updates over 18 windows. See `RESEARCH_REPORT.md` for exact
 numbers, limitations, and the next experiments required before publication.
+
+A six-replicate distance scan at `d = 3, 5, 7, 9` found that the cost of leaving
+the decoder stale increased with distance, while syndrome-only measurement-noise
+estimation became more precise. Confidence-aware adaptation recovered 89-97% of
+the oracle improvement using an average of 3.8-6.2 updates over 18 windows.
 
 ## Related work
 
