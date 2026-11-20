@@ -42,6 +42,7 @@ cd safe_adaptive_qec
 ../.venv/bin/python src/run_budget_sweep.py
 ../.venv/bin/python src/run_distance_scaling.py
 ../.venv/bin/python src/run_drift_amplitude_sweep.py
+../.venv/bin/python src/run_cost_aware_policy.py
 ```
 
 The full run writes:
@@ -57,12 +58,18 @@ The full run writes:
 - `figures/distance_scaling.png`
 - `results/drift_amplitude_summary.csv`
 - `figures/drift_amplitude_sweep.png`
+- `results/cost_aware_utility_surface.csv`
+- `results/cost_aware_summary.csv`
+- `results/cost_aware_tradeoff_summary.csv`
+- `figures/cost_aware.png`
 
 ## Current scope
 
 The first study varies measurement error while keeping gate, reset, and data
 noise fixed. This deliberately isolates one identifiable drift parameter. The
-next stage will add spatial hot spots and simultaneous data/measurement drift.
+current stage adds a logical-utility trigger for cost-aware recalibration. The
+next model extension will add spatial hot spots and simultaneous
+data/measurement drift.
 
 ## Preliminary result
 
@@ -89,6 +96,17 @@ when recalibration has no measurable logical benefit. For measurement-noise
 steps of one percentage point or larger, it recovered roughly 90% or more of
 the oracle benefit. This motivates the next algorithm: trigger on estimated
 logical utility, not significance alone.
+
+The new cost-aware policy learns an independent logical-utility surface and
+updates only when a conservative estimate of avoided failures over four future
+windows exceeds the reconstruction cost. Across 3.24 million held-out memory
+experiments per policy, the low-cost settings reduced updates by about 87-89%
+relative to confidence gating while adding only 21-22 logical failures. Across
+30 paired amplitude/seed blocks, this small logical difference was not
+statistically distinguishable from zero. Larger cost settings trace the
+expected frontier toward the static decoder. These results are promising but
+still use the same one-parameter simulated noise family for utility training
+and evaluation.
 
 ## Related work
 

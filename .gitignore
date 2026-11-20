@@ -8,10 +8,14 @@ results/*.csv
 !results/budget_sweep_summary.csv
 !results/distance_scaling_summary.csv
 !results/drift_amplitude_summary.csv
+!results/cost_aware_utility_surface.csv
+!results/cost_aware_summary.csv
+!results/cost_aware_tradeoff_summary.csv
 figures/*.png
 !figures/.gitkeep
 !figures/online_adaptation.png
 !figures/budget_sweep.png
 !figures/distance_scaling.png
 !figures/drift_amplitude_sweep.png
+!figures/cost_aware.png
 

@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from run_online_adaptation import Config, make_circuit, scenario_schedule  # noqa: E402
+from run_cost_aware_policy import UtilitySurface  # noqa: E402
 
 
 class SmokeTests(unittest.TestCase):
@@ -32,6 +33,24 @@ class SmokeTests(unittest.TestCase):
         self.assertEqual(schedule[0], config.initial_measurement_error)
         self.assertEqual(schedule[-1], config.high_measurement_error)
         self.assertEqual(np.count_nonzero(np.diff(schedule)), 1)
+
+    def test_utility_surface_prefers_a_better_candidate(self) -> None:
+        grid = np.array([0.005, 0.010, 0.020])
+        rates = np.array(
+            [
+                [0.01, 0.02, 0.04],
+                [0.02, 0.01, 0.02],
+                [0.04, 0.02, 0.01],
+            ]
+        )
+        surface = UtilitySurface(grid, grid, rates)
+        benefit = surface.conservative_benefit(
+            current_q=0.005,
+            candidate_q=0.020,
+            q_low=0.019,
+            q_high=0.020,
+        )
+        self.assertGreater(benefit, 0)
 
 
 if __name__ == "__main__":

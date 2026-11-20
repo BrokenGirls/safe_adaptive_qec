@@ -133,6 +133,59 @@ distance, base physical error rate, window size, and the chosen update cost. Its
 research value is that it demonstrates why a practical trigger must estimate
 logical utility or regret instead of relying only on a significance test.
 
+### Cost-aware logical-utility trigger
+
+The significance-only failure mode motivated a second policy. An independent
+simulation set was used to tabulate the logical error rate as a function of two
+variables: the true measurement error probability and the probability assumed
+by the MWPM decoder. Bilinear interpolation of this table provides an offline
+logical-utility model.
+
+After each online window, the new policy evaluates the proposed noise estimate
+across its full confidence interval. It uses the least favorable predicted
+improvement and multiplies it by the number of shots expected over the next
+four windows. The decoder is rebuilt only when this conservative number of
+avoided failures exceeds a specified reconstruction cost. Utility-table
+samples and evaluation streams use disjoint random seeds, and an estimate from
+window `t` still cannot affect decoding until window `t+1`.
+
+The evaluation repeated the six step amplitudes above with five independent
+seeds. Each policy decoded 3.24 million held-out memory experiments. Aggregated
+results were:
+
+| Policy | Logical failures | Relative to oracle | Updates across six scenarios | Excess vs oracle |
+|---|---:|---:|---:|---:|
+| oracle | 67,036 | 1.0000 | 0.0 | 0 |
+| confidence | 67,306 | 1.0040 | 35.8 | 270 |
+| cost = 0.5 | 67,327 | 1.0043 | 4.8 | 291 |
+| cost = 5 | 67,328 | 1.0044 | 4.0 | 292 |
+| cost = 10 | 67,414 | 1.0056 | 3.0 | 378 |
+| cost = 25 | 67,642 | 1.0090 | 2.0 | 606 |
+| cost = 50 or 100 | 68,061 | 1.0153 | 1.0 | 1,025 |
+| static | 69,361 | 1.0347 | 0.0 | 2,325 |
+
+The cost-5 policy used 88.8% fewer updates than confidence gating and incurred
+only 22 additional failures over 3.24 million experiments. Across the 30
+paired amplitude/seed blocks, its mean difference from confidence was 0.73
+failures per 108,000-shot block, with a 95% t interval from -1.00 to 2.46. The
+data therefore do not establish a logical-performance difference between these
+two policies at the current sample size, while the update-count reduction is
+large and deterministic.
+
+The desired qualitative behavior also appeared. For the smallest step, from
+0.5% to 0.6%, cost-aware policies made no updates while confidence gating made
+5.6 on average. At final measurement error rates of 1.0% to 3.0%, the low-cost
+policy generally updated once and removed most of the static decoder's logical
+penalty. It did not update for the 0.75% case and consequently missed a small
+but measurable benefit. Thus the method introduces a controllable tradeoff,
+not a free improvement.
+
+This result is algorithmically more useful than significance gating because
+the user can state reconstruction cost in a common unit—equivalent logical
+failures—and obtain a performance/update frontier. It is not yet a hardware
+claim: decoder build latency has not been measured, and the offline utility
+model is trained and tested within the same synthetic noise family.
+
 ### What the result does not establish
 
 This is a preliminary computational result, not yet a publication claim.
@@ -151,8 +204,8 @@ This is a preliminary computational result, not yet a publication claim.
 
 ### Next experiments
 
-1. Replace the significance-only trigger with a cost-aware rule that estimates
-   the logical benefit of rebuilding decoder weights.
+1. Repeat the cost-aware experiment with a utility surface trained at different
+   base physical error rates to test model mismatch.
 2. Repeat the distance and amplitude scans across several base physical error
    rates, with bootstrap intervals over independent replicates.
 3. Replace the detector-rate lookup with syndrome-pair correlation estimates.
@@ -170,6 +223,7 @@ Run:
 ../.venv/bin/python src/run_budget_sweep.py
 ../.venv/bin/python src/run_distance_scaling.py
 ../.venv/bin/python src/run_drift_amplitude_sweep.py
+../.venv/bin/python src/run_cost_aware_policy.py
 ```
 
 The tracked summary CSV files contain the reported aggregate values. Raw
