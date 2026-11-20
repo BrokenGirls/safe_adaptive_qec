@@ -41,6 +41,7 @@ cd safe_adaptive_qec
 ../.venv/bin/python src/run_online_adaptation.py
 ../.venv/bin/python src/run_budget_sweep.py
 ../.venv/bin/python src/run_distance_scaling.py
+../.venv/bin/python src/run_drift_amplitude_sweep.py
 ```
 
 The full run writes:
@@ -54,6 +55,8 @@ The full run writes:
 - `figures/budget_sweep.png`
 - `results/distance_scaling_summary.csv`
 - `figures/distance_scaling.png`
+- `results/drift_amplitude_summary.csv`
+- `figures/drift_amplitude_sweep.png`
 
 ## Current scope
 
@@ -79,6 +82,13 @@ A six-replicate distance scan at `d = 3, 5, 7, 9` found that the cost of leaving
 the decoder stale increased with distance, while syndrome-only measurement-noise
 estimation became more precise. Confidence-aware adaptation recovered 89-97% of
 the oracle improvement using an average of 3.8-6.2 updates over 18 windows.
+
+A drift-amplitude scan then identified a failure mode in the current heuristic:
+it can detect and react to very small statistically significant changes even
+when recalibration has no measurable logical benefit. For measurement-noise
+steps of one percentage point or larger, it recovered roughly 90% or more of
+the oracle benefit. This motivates the next algorithm: trigger on estimated
+logical utility, not significance alone.
 
 ## Related work
 

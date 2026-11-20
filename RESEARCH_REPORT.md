@@ -105,12 +105,40 @@ is promising but remains conditional on the one-parameter synthetic noise
 model; the increased number of detector bits does not guarantee identifiability
 when several physical noise parameters drift simultaneously.
 
+### Drift-amplitude boundary
+
+A third study varied the post-change measurement error from 0.6% to 3.0%, with
+the initial value fixed at 0.5%. It used distance 5, five independent seeds,
+18 time windows, and 3,000 shots per window per logical basis.
+
+| Final measurement error | Step size | Static/oracle | Confidence/oracle | Oracle benefit recovered | Confidence updates |
+|---:|---:|---:|---:|---:|---:|
+| 0.60% | 0.10 pp | 0.9999 | 1.0004 | not measurable | 3.8 |
+| 0.75% | 0.25 pp | 1.0056 | 1.0003 | 93.8% | 5.0 |
+| 1.00% | 0.50 pp | 1.0069 | 1.0018 | 73.4% | 6.2 |
+| 1.50% | 1.00 pp | 1.0244 | 1.0015 | 93.9% | 6.0 |
+| 2.00% | 1.50 pp | 1.0403 | 1.0042 | 89.6% | 5.6 |
+| 3.00% | 2.50 pp | 1.0869 | 1.0065 | 92.5% | 7.8 |
+
+The smallest drift produced no measurable oracle advantage over the static
+decoder, yet the confidence heuristic still triggered an average of 3.8 times.
+This exposes an important distinction: statistical evidence that the syndrome
+distribution changed is not evidence that decoder reconstruction is worth its
+cost. Once the step reaches about one percentage point in this configuration,
+the static penalty becomes substantial and confidence-aware adaptation recovers
+about 90% or more of the available oracle improvement.
+
+The observed boundary is not a universal hardware threshold. It depends on code
+distance, base physical error rate, window size, and the chosen update cost. Its
+research value is that it demonstrates why a practical trigger must estimate
+logical utility or regret instead of relying only on a significance test.
+
 ### What the result does not establish
 
 This is a preliminary computational result, not yet a publication claim.
 
-1. Distance scaling has been tested, but only one base physical error rate and
-   one step amplitude were used.
+1. Distance and drift-amplitude scaling have been tested, but only one base
+   physical error rate was used.
 2. The changing noise is synthetic Pauli measurement noise.
 3. The estimator assumes gate and data noise remain fixed.
 4. Detector outcomes within a shot are correlated; the current normal interval
@@ -123,12 +151,12 @@ This is a preliminary computational result, not yet a publication claim.
 
 ### Next experiments
 
-1. Repeat the distance scan across several base physical error rates and drift
-   amplitudes, with bootstrap intervals over independent replicates.
-2. Replace the detector-rate lookup with syndrome-pair correlation estimates.
-3. Add simultaneous data and measurement drift, local hot qubits, and bursts.
-4. Replace the fixed significance threshold with a decision rule that minimizes
-   logical regret plus recalibration cost.
+1. Replace the significance-only trigger with a cost-aware rule that estimates
+   the logical benefit of rebuilding decoder weights.
+2. Repeat the distance and amplitude scans across several base physical error
+   rates, with bootstrap intervals over independent replicates.
+3. Replace the detector-rate lookup with syndrome-pair correlation estimates.
+4. Add simultaneous data and measurement drift, local hot qubits, and bursts.
 5. Test on public hardware syndrome data if a compatible dataset is available.
 6. Compare against sliding-window estimation and a change-point baseline.
 
@@ -141,6 +169,7 @@ Run:
 ../.venv/bin/python src/run_online_adaptation.py
 ../.venv/bin/python src/run_budget_sweep.py
 ../.venv/bin/python src/run_distance_scaling.py
+../.venv/bin/python src/run_drift_amplitude_sweep.py
 ```
 
 The tracked summary CSV files contain the reported aggregate values. Raw
