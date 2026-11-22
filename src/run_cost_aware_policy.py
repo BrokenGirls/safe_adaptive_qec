@@ -29,11 +29,11 @@ from run_online_adaptation import (  # noqa: E402
     BASES,
     Config,
     build_calibration_curve,
+    confidence_recalibration_step,
     decode_failures,
     decoder_for,
     deterministic_seed,
     estimate_q,
-    expected_dfr,
     make_circuit,
     scenario_schedule,
 )
@@ -88,6 +88,29 @@ class UtilitySurface:
             self.loss(q, current_q) - self.loss(q, candidate_q) for q in interval
         ]
         return float(min(improvements))
+
+
+def cost_aware_recalibration_step(
+    *,
+    current_q: float,
+    candidate_q: float,
+    q_low: float,
+    q_high: float,
+    utility: UtilitySurface,
+    future_shots: int,
+    update_cost: float,
+    min_update_delta: float,
+) -> tuple[float, bool, float]:
+    """Return next q, decision, and conservative avoided-failure estimate."""
+    conservative_rate = utility.conservative_benefit(
+        current_q, candidate_q, q_low, q_high
+    )
+    predicted_avoided = conservative_rate * future_shots
+    update = (
+        predicted_avoided > update_cost
+        and abs(candidate_q - current_q) >= min_update_delta
+    )
+    return (candidate_q if update else current_q), update, predicted_avoided
 
 
 def build_utility_surface(
@@ -241,24 +264,19 @@ def run_cost_scenario(
         old_q = decoder_q.copy()
         decoder_q["naive"] = q_hat
 
-        confidence_expected = expected_dfr(decoder_q["confidence"], calibration)
-        significant = not (
-            dfr - config.confidence_z * dfr_se
-            <= confidence_expected
-            <= dfr + config.confidence_z * dfr_se
-        )
-        confidence_update = significant and (
-            abs(q_hat - decoder_q["confidence"]) >= config.min_update_delta
-        )
-        if confidence_update:
-            interval_width = max(q_high - q_low, 1e-9)
-            displacement = abs(q_hat - decoder_q["confidence"])
-            alpha = float(
-                np.clip(1.0 - interval_width / max(displacement, 1e-9), 0.2, 0.9)
+        decoder_q["confidence"], confidence_update, _ = (
+            confidence_recalibration_step(
+                current_q=decoder_q["confidence"],
+                q_hat=q_hat,
+                q_low=q_low,
+                q_high=q_high,
+                detector_firing_rate=dfr,
+                detector_firing_rate_se=dfr_se,
+                calibration=calibration,
+                z=config.confidence_z,
+                min_update_delta=config.min_update_delta,
             )
-            decoder_q["confidence"] += alpha * (
-                q_hat - decoder_q["confidence"]
-            )
+        )
 
         row = {
             "epoch": epoch,
@@ -266,25 +284,29 @@ def run_cost_scenario(
             "estimated_measurement_error_rate": q_hat,
             "estimate_ci_low": q_low,
             "estimate_ci_high": q_high,
+            "detector_firing_rate": dfr,
+            "detector_firing_rate_se": dfr_se,
             "confidence_q_used": old_q["confidence"],
             "confidence_updated_after_epoch": confidence_update,
         }
         future_shots = planning_horizon * config.shots_per_epoch * len(BASES)
         for cost in costs:
             method = cost_method(cost)
-            conservative_rate = utility.conservative_benefit(
-                decoder_q[method], q_hat, q_low, q_high
-            )
-            predicted_avoided = conservative_rate * future_shots
-            update = (
-                predicted_avoided > cost
-                and abs(q_hat - decoder_q[method]) >= config.min_update_delta
+            decoder_q[method], update, predicted_avoided = (
+                cost_aware_recalibration_step(
+                    current_q=decoder_q[method],
+                    candidate_q=q_hat,
+                    q_low=q_low,
+                    q_high=q_high,
+                    utility=utility,
+                    future_shots=future_shots,
+                    update_cost=cost,
+                    min_update_delta=config.min_update_delta,
+                )
             )
             row[f"{method}_q_used"] = old_q[method]
             row[f"{method}_predicted_avoided_failures"] = predicted_avoided
             row[f"{method}_updated_after_epoch"] = update
-            if update:
-                decoder_q[method] = q_hat
             row[f"{method}_q_next"] = decoder_q[method]
         adaptation_rows.append(row)
 
@@ -431,6 +453,53 @@ def aggregate_tradeoff(summary: pd.DataFrame, replicates: int) -> pd.DataFrame:
     return aggregate.sort_values("logical_failures").reset_index(drop=True)
 
 
+def build_block_summary(
+    results: pd.DataFrame,
+    adaptation: pd.DataFrame,
+) -> pd.DataFrame:
+    """Create the compact 30-block table used by paired interval estimates."""
+    failures = (
+        results.groupby(
+            ["high_measurement_error", "replicate", "method"], as_index=False
+        )["logical_failures"]
+        .sum()
+        .pivot(
+            index=["high_measurement_error", "replicate"],
+            columns="method",
+            values="logical_failures",
+        )
+        .reset_index()
+    )
+    updates = adaptation.groupby(
+        ["high_measurement_error", "replicate"], as_index=False
+    ).agg(
+        confidence_updates=("confidence_updated_after_epoch", "sum"),
+        cost_0_5_updates=("cost_0.5_updated_after_epoch", "sum"),
+        cost_5_updates=("cost_5_updated_after_epoch", "sum"),
+    )
+    blocks = failures.merge(
+        updates,
+        on=["high_measurement_error", "replicate"],
+        how="left",
+        validate="one_to_one",
+    )
+    blocks["cost_0_5_minus_confidence"] = (
+        blocks["cost_0.5"] - blocks["confidence"]
+    )
+    blocks["cost_5_minus_confidence"] = (
+        blocks["cost_5"] - blocks["confidence"]
+    )
+    return blocks.rename(
+        columns={
+            "cost_0.5": "cost_0_5_failures",
+            "cost_5": "cost_5_failures",
+            "confidence": "confidence_failures",
+            "oracle": "oracle_failures",
+            "static": "static_failures",
+        }
+    ).sort_values(["high_measurement_error", "replicate"])
+
+
 def plot_results(summary: pd.DataFrame, initial_q: float, output: Path) -> None:
     cost_methods = [cost_method(cost) for cost in COSTS]
     colors = plt.cm.viridis(np.linspace(0.15, 0.9, len(cost_methods)))
@@ -569,10 +638,12 @@ def main() -> None:
     adaptation = pd.concat(adaptation_frames, ignore_index=True)
     summary = summarize(results, adaptation)
     tradeoff = aggregate_tradeoff(summary, replicates)
+    blocks = build_block_summary(results, adaptation)
     results.to_csv(RESULTS / "cost_aware_epoch_results.csv", index=False)
     adaptation.to_csv(RESULTS / "cost_aware_adaptation_log.csv", index=False)
     summary.to_csv(RESULTS / "cost_aware_summary.csv", index=False)
     tradeoff.to_csv(RESULTS / "cost_aware_tradeoff_summary.csv", index=False)
+    blocks.to_csv(RESULTS / "cost_aware_block_summary.csv", index=False)
     plot_results(summary, base.initial_measurement_error, FIGURES / "cost_aware.png")
     print("\nCost-aware summary")
     print(

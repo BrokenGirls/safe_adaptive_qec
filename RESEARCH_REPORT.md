@@ -81,7 +81,8 @@ overly small windows can delay adaptation and cause avoidable logical errors.
 
 The step-drift experiment was repeated at code distances 3, 5, 7, and 9. Each
 distance used six independent random seeds, 18 time windows, 4,000 shots per
-window per logical basis, and a separately calibrated detector-rate curve.
+window per logical basis, and a separately calibrated detector-rate curve. The
+number of syndrome rounds was set equal to each code distance.
 
 | Distance | Static/oracle | Confidence/oracle | Oracle benefit recovered | Confidence updates | Estimation RMSE |
 |---:|---:|---:|---:|---:|---:|
@@ -215,18 +216,24 @@ This is a preliminary computational result, not yet a publication claim.
 
 ### Reproducibility
 
-Run:
+Python 3.12 or 3.13 is required. From a fresh clone, run:
 
 ```bash
-../.venv/bin/python -m unittest discover -s tests -v
-../.venv/bin/python src/run_online_adaptation.py
-../.venv/bin/python src/run_budget_sweep.py
-../.venv/bin/python src/run_distance_scaling.py
-../.venv/bin/python src/run_drift_amplitude_sweep.py
-../.venv/bin/python src/run_cost_aware_policy.py
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+python src/run_online_adaptation.py
+python src/run_budget_sweep.py
+python src/run_distance_scaling.py
+python src/run_drift_amplitude_sweep.py
+python src/run_cost_aware_policy.py
 ```
 
 The tracked summary CSV files contain the reported aggregate values. Raw
 per-window data are reproducible but ignored by Git to keep the repository
-small.
+small. `results/cost_aware_block_summary.csv` preserves the 30 paired blocks
+needed to reproduce the reported t interval without committing the full
+per-window evaluation files.
 

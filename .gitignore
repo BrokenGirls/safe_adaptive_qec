@@ -11,6 +11,7 @@ results/*.csv
 !results/cost_aware_utility_surface.csv
 !results/cost_aware_summary.csv
 !results/cost_aware_tradeoff_summary.csv
+!results/cost_aware_block_summary.csv
 figures/*.png
 !figures/.gitkeep
 !figures/online_adaptation.png

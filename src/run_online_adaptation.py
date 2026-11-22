@@ -178,6 +178,40 @@ def expected_dfr(q: float, calibration: pd.DataFrame) -> float:
     )
 
 
+def confidence_recalibration_step(
+    *,
+    current_q: float,
+    q_hat: float,
+    q_low: float,
+    q_high: float,
+    detector_firing_rate: float,
+    detector_firing_rate_se: float,
+    calibration: pd.DataFrame,
+    z: float,
+    min_update_delta: float,
+) -> tuple[float, bool, float]:
+    """Return the next decoder q, update decision, and shrinkage factor.
+
+    This is a pure one-window transition. Keeping the decision rule separate
+    from simulation makes its causal behavior directly regression-testable.
+    """
+    old_expected_dfr = expected_dfr(current_q, calibration)
+    interval_low = detector_firing_rate - z * detector_firing_rate_se
+    interval_high = detector_firing_rate + z * detector_firing_rate_se
+    significant = not (interval_low <= old_expected_dfr <= interval_high)
+    large_enough = abs(q_hat - current_q) >= min_update_delta
+    update = significant and large_enough
+    if not update:
+        return current_q, False, 0.0
+
+    interval_width = max(q_high - q_low, 1e-9)
+    displacement = abs(q_hat - current_q)
+    alpha = float(
+        np.clip(1.0 - interval_width / max(displacement, 1e-9), 0.2, 0.9)
+    )
+    return current_q + alpha * (q_hat - current_q), True, alpha
+
+
 def scenario_schedule(name: str, config: Config) -> np.ndarray:
     q0 = config.initial_measurement_error
     q1 = config.high_measurement_error
@@ -212,8 +246,15 @@ def run_scenario(
     scenario_index: int,
     config: Config,
     calibration: pd.DataFrame,
+    schedule_override: np.ndarray | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    schedule = scenario_schedule(name, config)
+    schedule = (
+        scenario_schedule(name, config)
+        if schedule_override is None
+        else np.asarray(schedule_override, dtype=float)
+    )
+    if len(schedule) != config.epochs:
+        raise ValueError("schedule length must equal config.epochs")
     decoder_q = {
         "static": config.initial_measurement_error,
         "periodic": config.initial_measurement_error,
@@ -293,22 +334,21 @@ def run_scenario(
         if periodic_update:
             decoder_q["periodic"] = q_hat
 
-        confidence_expected_dfr = expected_dfr(decoder_q["confidence"], calibration)
-        significant = not (
-            dfr - config.confidence_z * dfr_se
-            <= confidence_expected_dfr
-            <= dfr + config.confidence_z * dfr_se
+        (
+            decoder_q["confidence"],
+            confidence_update,
+            alpha,
+        ) = confidence_recalibration_step(
+            current_q=decoder_q["confidence"],
+            q_hat=q_hat,
+            q_low=q_low,
+            q_high=q_high,
+            detector_firing_rate=dfr,
+            detector_firing_rate_se=dfr_se,
+            calibration=calibration,
+            z=config.confidence_z,
+            min_update_delta=config.min_update_delta,
         )
-        large_enough = abs(q_hat - decoder_q["confidence"]) >= config.min_update_delta
-        confidence_update = significant and large_enough
-        alpha = 0.0
-        if confidence_update:
-            interval_width = max(q_high - q_low, 1e-9)
-            displacement = abs(q_hat - decoder_q["confidence"])
-            alpha = float(np.clip(1.0 - interval_width / max(displacement, 1e-9), 0.2, 0.9))
-            decoder_q["confidence"] += alpha * (
-                q_hat - decoder_q["confidence"]
-            )
 
         adaptation_rows.append(
             {
@@ -318,6 +358,8 @@ def run_scenario(
                 "estimated_measurement_error_rate": q_hat,
                 "estimate_ci_low": q_low,
                 "estimate_ci_high": q_high,
+                "detector_firing_rate": dfr,
+                "detector_firing_rate_se": dfr_se,
                 "static_q_used": previous["static"],
                 "periodic_q_used": previous["periodic"],
                 "naive_q_used": previous["naive"],
