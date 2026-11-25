@@ -124,7 +124,7 @@ logical utility, not significance alone.
 The new cost-aware policy learns an independent logical-utility surface and
 updates only when a conservative estimate of avoided failures over four future
 windows exceeds the reconstruction cost. Across 3.24 million held-out memory
-experiments per policy, the low-cost settings reduced updates by about 86-89%
+experiments per policy, the low-cost settings reduced updates by about 87–89%
 relative to confidence gating while adding only 21-22 logical failures. Across
 30 paired amplitude/seed blocks, this small logical difference was not
 statistically distinguishable from zero. Larger cost settings trace the
